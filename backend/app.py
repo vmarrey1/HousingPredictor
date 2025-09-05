@@ -34,8 +34,26 @@ else:
 app = Flask(__name__)
 # Secret key for sessions
 app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-change-me')
+
+# Configure CORS for production domains
+allowed_origins = [
+    'https://berkeleyfouryearplan.com',
+    'https://www.berkeleyfouryearplan.com',
+    'http://localhost:3000',  # For local development
+    'http://localhost:3001',  # For local development
+]
+
 # Enable CORS with credentials for frontend
-CORS(app, supports_credentials=True)
+CORS(app, 
+     origins=allowed_origins,
+     supports_credentials=True,
+     allow_headers=['Content-Type', 'Authorization'],
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
+
+# Configure session cookies for production
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('FLASK_ENV') == 'production'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'None' if os.getenv('FLASK_ENV') == 'production' else 'Lax'
 
 # Global variables
 courses_df = None
