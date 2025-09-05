@@ -2,14 +2,16 @@
 const nextConfig = {
   output: 'standalone',
   async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: process.env.NODE_ENV === 'production' 
-          ? 'http://berkeley-planner:5000/api/:path*'
-          : 'http://localhost:5000/api/:path*',
-      },
-    ]
+    // Only proxy in development; in production, use NEXT_PUBLIC_API_BASE
+    if (process.env.NODE_ENV === 'development') {
+      return [
+        {
+          source: '/api/:path*',
+          destination: 'http://localhost:5000/api/:path*',
+        },
+      ]
+    }
+    return []
   },
   // Production optimizations
   compress: true,

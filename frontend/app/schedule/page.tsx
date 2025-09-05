@@ -7,6 +7,12 @@ import { ArrowLeft, Calendar, BookOpen, Clock, CheckCircle, AlertCircle } from '
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
+// Configure axios base URL for production
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || ''
+if (API_BASE) {
+  axios.defaults.baseURL = API_BASE
+}
+
 interface Course {
   subject: string
   number: string

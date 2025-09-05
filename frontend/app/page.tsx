@@ -8,6 +8,11 @@ import Link from 'next/link'
 import toast from 'react-hot-toast'
 import axios from 'axios'
 
+// Configure axios base URL for production
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || ''
+if (API_BASE) {
+  axios.defaults.baseURL = API_BASE
+}
 axios.defaults.withCredentials = true
 
 export default function Home() {
