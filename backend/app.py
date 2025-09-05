@@ -15,10 +15,18 @@ import google.generativeai as genai
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configure Google Gemini AI
-GEMINI_API_KEY = "AIzaSyAeRMHtZm1zsxoa_fr5gtOrGXXHunS0kog"
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+# Configure Google Gemini AI via environment variable
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+model = None
+if GEMINI_API_KEY:
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        logger.info("Gemini model initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize Gemini model: {e}")
+else:
+    logger.warning("GEMINI_API_KEY not set. AI features will be disabled.")
 
 app = Flask(__name__)
 CORS(app)
