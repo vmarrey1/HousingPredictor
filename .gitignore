@@ -29,6 +29,7 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+logs/
 
 # Build outputs
 .next/
@@ -36,6 +37,21 @@ out/
 build/
 dist/
 
+# Production files
+ssl/
+*.pem
+*.key
+*.crt
+
+# Docker
+.dockerignore
+
 # Temporary files
 *.tmp
 *.temp
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+backend/app_production.py
