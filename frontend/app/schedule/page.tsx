@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import axios from 'axios'
 import { motion } from 'framer-motion'
 import { ArrowLeft, Calendar, BookOpen, Clock, CheckCircle, AlertCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -32,8 +33,11 @@ interface FourYearPlan {
   ai_recommendations?: string
 }
 
+axios.defaults.withCredentials = true
+
 export default function SchedulePage() {
   const [plan, setPlan] = useState<FourYearPlan | null>(null)
+  const [user, setUser] = useState<{id: string; email: string} | null>(null)
   const [selectedSemester, setSelectedSemester] = useState<Semester | null>(null)
   const [showCourseOptions, setShowCourseOptions] = useState(false)
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
@@ -48,6 +52,7 @@ export default function SchedulePage() {
     } else {
       router.push('/')
     }
+    axios.get('/api/auth/me').then(res => setUser(res.data?.user || null)).catch(() => {})
   }, [router])
 
   const loadCourseOptions = async (course: Course) => {
@@ -100,6 +105,21 @@ export default function SchedulePage() {
     setPlan(updatedPlan)
     sessionStorage.setItem('fourYearPlan', JSON.stringify(updatedPlan))
     setShowCourseOptions(false)
+  }
+
+  const savePlan = async () => {
+    if (!user) {
+      router.push('/auth')
+      return
+    }
+    if (!plan) return
+    try {
+      await axios.post('/api/schedules', { name: `${plan.major} Plan`, data: plan })
+      alert('Plan saved')
+    } catch (e) {
+      console.error(e)
+      alert('Failed to save plan')
+    }
   }
 
   if (!plan) {
@@ -200,6 +220,11 @@ export default function SchedulePage() {
               </div>
               <p className="text-sm text-gray-500">Semesters</p>
               <p className="font-semibold">{plan.semesters.length}</p>
+            </div>
+            <div className="md:col-span-4 mt-4 text-center">
+              <button onClick={savePlan} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition">
+                Save Plan
+              </button>
             </div>
           </div>
         </motion.div>

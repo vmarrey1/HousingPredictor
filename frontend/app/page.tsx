@@ -4,8 +4,11 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { GraduationCap, Calendar, BookOpen, ChevronRight, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import toast from 'react-hot-toast'
 import axios from 'axios'
+
+axios.defaults.withCredentials = true
 
 export default function Home() {
   const [majors, setMajors] = useState<string[]>([])
@@ -18,10 +21,15 @@ export default function Home() {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [user, setUser] = useState<{id: string; email: string} | null>(null)
   const router = useRouter()
 
   useEffect(() => {
     loadMajors()
+    // load current user
+    axios.get('/api/auth/me')
+      .then(res => setUser(res.data?.user || null))
+      .catch(() => setUser(null))
   }, [])
 
   // Close suggestions when clicking outside
@@ -125,7 +133,7 @@ export default function Home() {
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-center">
+          <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="p-2 bg-primary-100 rounded-lg">
                 <GraduationCap className="h-8 w-8 text-primary-600" />
@@ -133,6 +141,16 @@ export default function Home() {
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">UC Berkeley Four Year Plan Generator</h1>
                 <p className="text-gray-600">Create your personalized academic roadmap</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className="text-right">
+                <Link href="/auth" className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition inline-block">
+                  Sign in
+                </Link>
+                {user?.email && (
+                  <div className="text-xs text-gray-600 mt-1">{user.email}</div>
+                )}
               </div>
             </div>
           </div>
@@ -312,6 +330,20 @@ export default function Home() {
                   <span>Generate Four Year Plan</span>
                 </>
               )}
+            </button>
+
+            {/* Load Previous Schedules Button */}
+            <button
+              onClick={() => {
+                if (user?.email) {
+                  router.push('/schedules')
+                } else {
+                  router.push('/auth')
+                }
+              }}
+              className="w-full mt-3 btn-primary flex items-center justify-center"
+            >
+              Load Previous Schedules
             </button>
           </div>
         </motion.div>

@@ -3,13 +3,16 @@
 UC Berkeley Four Year Plan Generator - Flask Backend
 """
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 import pandas as pd
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import google.generativeai as genai
+from werkzeug.security import generate_password_hash, check_password_hash
+from pymongo import MongoClient, ASCENDING
+from pymongo.errors import DuplicateKeyError
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -29,11 +32,26 @@ else:
     logger.warning("GEMINI_API_KEY not set. AI features will be disabled.")
 
 app = Flask(__name__)
-CORS(app)
+# Secret key for sessions
+app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-change-me')
+# Enable CORS with credentials for frontend
+CORS(app, supports_credentials=True)
 
 # Global variables
 courses_df = None
 majors_data = {}
+MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017')
+MONGO_DB_NAME = os.getenv('MONGO_DB_NAME', 'berkeley_planner')
+mongo_client: MongoClient | None = None
+db = None
+
+def init_db():
+    global mongo_client, db
+    mongo_client = MongoClient(MONGODB_URI)
+    db = mongo_client[MONGO_DB_NAME]
+    # indexes
+    db.users.create_index([('email', ASCENDING)], unique=True)
+    db.schedules.create_index([('user_id', ASCENDING), ('updated_at', ASCENDING)])
 
 def load_course_data():
     """Load course data from CSV"""
@@ -315,7 +333,7 @@ def get_course_info(subject, course_number):
         return course.iloc[0].to_dict()
     return None
 
-def generate_four_year_plan_with_ai(major, graduation_year, preferences=None):
+def generate_four_year_plan_with_ai(major, graduation_year, preferences=None, graduation_semester='Spring'):
     """Generate a four-year plan using Google Gemini AI"""
     try:
         # Get available courses from our dataset
@@ -412,7 +430,7 @@ def generate_four_year_plan_with_ai(major, graduation_year, preferences=None):
         # Fallback to basic plan generation
         return generate_basic_four_year_plan(major, graduation_year, preferences)
 
-def generate_basic_four_year_plan(major, graduation_year, preferences=None):
+def generate_basic_four_year_plan(major, graduation_year, preferences=None, graduation_semester='Spring'):
     """Generate a basic four-year plan (fallback method)"""
     if major not in majors_data:
         return None
@@ -463,14 +481,119 @@ def generate_basic_four_year_plan(major, graduation_year, preferences=None):
     
     return plan
 
-def generate_four_year_plan(major, graduation_year, preferences=None):
+def generate_four_year_plan(major, graduation_year, preferences=None, graduation_semester='Spring'):
     """Generate a four-year plan (wrapper function)"""
-    return generate_four_year_plan_with_ai(major, graduation_year, preferences)
+    return generate_four_year_plan_with_ai(major, graduation_year, preferences, graduation_semester)
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
     return jsonify({"status": "healthy", "message": "Berkeley Four Year Plan Generator is running"})
+
+# ---------------------- AUTH ENDPOINTS ----------------------
+@app.route('/api/auth/signup', methods=['POST'])
+def signup():
+    data = request.get_json() or {}
+    email = (data.get('email') or '').strip().lower()
+    password = data.get('password') or ''
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+    password_hash = generate_password_hash(password)
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        result = db.users.insert_one({
+            'email': email,
+            'password_hash': password_hash,
+            'created_at': now
+        })
+    except DuplicateKeyError:
+        return jsonify({"error": "Email already registered"}), 409
+    user_id = str(result.inserted_id)
+    session['user_id'] = user_id
+    session['email'] = email
+    return jsonify({"id": user_id, "email": email})
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    data = request.get_json() or {}
+    email = (data.get('email') or '').strip().lower()
+    password = data.get('password') or ''
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+    user = db.users.find_one({'email': email})
+    if not user or not check_password_hash(user['password_hash'], password):
+        return jsonify({"error": "Invalid credentials"}), 401
+    session['user_id'] = str(user['_id'])
+    session['email'] = email
+    return jsonify({"id": session['user_id'], "email": email})
+
+@app.route('/api/auth/logout', methods=['POST'])
+def logout():
+    session.clear()
+    return jsonify({"ok": True})
+
+@app.route('/api/auth/me', methods=['GET'])
+def me():
+    if 'user_id' not in session:
+        return jsonify({"user": None})
+    return jsonify({"user": {"id": session['user_id'], "email": session.get('email')}})
+
+# ---------------------- SCHEDULES ENDPOINTS ----------------------
+@app.route('/api/schedules', methods=['GET', 'POST'])
+def schedules():
+    if 'user_id' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    user_id = session['user_id']
+    if request.method == 'GET':
+        rows = list(db.schedules.find({'user_id': user_id}).sort('updated_at', -1))
+        return jsonify([{ "id": str(r['_id']), "name": r['name'], "data": r['data'], "created_at": r['created_at'], "updated_at": r['updated_at'] } for r in rows])
+    else:
+        body = request.get_json() or {}
+        name = (body.get('name') or 'My Plan').strip()
+        data = body.get('data')
+        if not data:
+            return jsonify({"error": "Missing schedule data"}), 400
+        now = datetime.now(timezone.utc).isoformat()
+        result = db.schedules.insert_one({
+            'user_id': user_id,
+            'name': name,
+            'data': data,
+            'created_at': now,
+            'updated_at': now
+        })
+        return jsonify({"id": str(result.inserted_id), "name": name}), 201
+
+from bson import ObjectId
+
+@app.route('/api/schedules/<schedule_id>', methods=['GET', 'PUT', 'DELETE'])
+def schedule_detail(schedule_id: str):
+    if 'user_id' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    user_id = session['user_id']
+    try:
+        oid = ObjectId(schedule_id)
+    except Exception:
+        return jsonify({"error": "Invalid id"}), 400
+    if request.method == 'GET':
+        row = db.schedules.find_one({'_id': oid, 'user_id': user_id})
+        if not row:
+            return jsonify({"error": "Not found"}), 404
+        return jsonify({ "id": str(row['_id']), "name": row['name'], "data": row['data'], "created_at": row['created_at'], "updated_at": row['updated_at'] })
+    elif request.method == 'PUT':
+        body = request.get_json() or {}
+        name = (body.get('name') or '').strip()
+        data = body.get('data')
+        now = datetime.now(timezone.utc).isoformat()
+        update = {'updated_at': now}
+        if name:
+            update['name'] = name
+        if data is not None:
+            update['data'] = data
+        db.schedules.update_one({'_id': oid, 'user_id': user_id}, {'$set': update})
+        return jsonify({"ok": True})
+    else:
+        db.schedules.delete_one({'_id': oid, 'user_id': user_id})
+        return jsonify({"ok": True})
 
 @app.route('/api/majors', methods=['GET'])
 def get_majors():
@@ -504,7 +627,7 @@ def generate_plan():
         preferences['completed_courses'] = completed_courses
         preferences['current_year'] = current_year
         
-        plan = generate_four_year_plan(major, graduation_year, preferences)
+        plan = generate_four_year_plan(major, graduation_year, preferences, graduation_semester)
         if not plan:
             return jsonify({"error": "Failed to generate plan"}), 500
         
@@ -672,6 +795,7 @@ def get_ai_suggestions():
 
 if __name__ == '__main__':
     # Load data on startup
+    init_db()
     load_course_data()
     load_majors_data()
     
