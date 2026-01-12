@@ -7,7 +7,10 @@
       "Bash(curl:*)",
       "Bash(copy \"C:\\\\Users\\\\varun\\\\OneDrive\\\\Documentos\\\\BerkeleyFourYearPlanGenerator\\\\courses-report.2025-09-04 \\(7\\).csv\" \"C:\\\\Users\\\\varun\\\\OneDrive\\\\Documentos\\\\BerkeleyFourYearPlanGenerator\\\\backend\\\\courses-data.csv\")",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nRestructure for Railway + Vercel deployment\n\n- Add backend/Dockerfile optimized for Railway \\(CPU-only PyTorch\\)\n- Add railway.toml config and .env.example\n- Add frontend/vercel.json and .env.example\n- Update CORS to support configurable origins\n- Update CSV loading to check multiple paths\n- Remove old monolithic Docker setup \\(root Dockerfile, docker-compose, nginx, scripts\\)\n- Clean up obsolete files \\(PRODUCTION.md, init.sql, postgresql-installer\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(git push)"
+      "Bash(git push)",
+      "Bash(git push:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
