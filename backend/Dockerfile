@@ -9,11 +9,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
 # Install dependencies
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy app code
-COPY app.py rag_pipeline.py courses-data.csv ./
+COPY backend/app.py backend/rag_pipeline.py backend/courses-data.csv ./
 
 # Non-root user
 RUN useradd -m appuser && chown -R appuser:appuser /app
