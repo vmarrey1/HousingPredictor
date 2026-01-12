@@ -28,21 +28,36 @@ app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-change-me')
 
 # Configure CORS for production domains
-allowed_origins = [
-    'https://berkeleyfouryearplan.com',
-    'https://www.berkeleyfouryearplan.com',
-    'http://localhost:3000',  # For local development
-    'http://localhost:3001',  # For local development
-]
+import re
 
-# Add additional origins from environment variable (comma-separated)
-extra_origins = os.getenv('ALLOWED_ORIGINS', '')
-if extra_origins:
-    allowed_origins.extend([o.strip() for o in extra_origins.split(',') if o.strip()])
+def cors_origin_callback(origin):
+    """Check if origin is allowed - supports Vercel preview URLs"""
+    if not origin:
+        return False
+
+    allowed_patterns = [
+        r'^https://berkeleyfouryearplan\.com$',
+        r'^https://www\.berkeleyfouryearplan\.com$',
+        r'^http://localhost:\d+$',
+        r'^https://.*\.vercel\.app$',  # All Vercel preview/prod URLs
+    ]
+
+    for pattern in allowed_patterns:
+        if re.match(pattern, origin):
+            return True
+
+    # Check additional origins from env
+    extra_origins = os.getenv('ALLOWED_ORIGINS', '')
+    if extra_origins:
+        for o in extra_origins.split(','):
+            if origin == o.strip():
+                return True
+
+    return False
 
 # Enable CORS with credentials for frontend
 CORS(app,
-     origins=allowed_origins,
+     origins=cors_origin_callback,
      supports_credentials=True,
      allow_headers=['Content-Type', 'Authorization'],
      methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
