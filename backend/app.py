@@ -1082,13 +1082,15 @@ def get_ai_suggestions():
         logger.error(f"Error getting AI suggestions: {e}")
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
+# ---------------------- INITIALIZATION ----------------------
+# Initialize on module import (required for Gunicorn)
+init_db()
+load_course_data()
+load_majors_data()
+init_rag_pipeline()
+logger.info("Berkeley Four Year Plan Generator API initialized")
+
 # ---------------------- MAIN ----------------------
 if __name__ == '__main__':
-    # Initialize components on startup
-    init_db()
-    load_course_data()
-    load_majors_data()
-    init_rag_pipeline()
-
-    logger.info("Starting Berkeley Four Year Plan Generator API")
+    logger.info("Starting development server")
     app.run(debug=True, host='0.0.0.0', port=5000)
