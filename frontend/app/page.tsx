@@ -145,7 +145,7 @@ export default function Home() {
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">UC Berkeley Four Year Plan Generator</h1>
-                <p className="text-gray-600">Create your personalized academic roadmap</p>
+                <p className="text-gray-600">Generate your personalized academic plan</p>
               </div>
             </div>
             <div className="flex items-center space-x-3">
@@ -171,9 +171,9 @@ export default function Home() {
           className="card"
         >
           <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Plan Your Berkeley Journey</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Generate Your Four-Year Plan</h2>
             <p className="text-gray-600">
-              Select your major and graduation year to generate a personalized four-year academic plan
+              Select your major and graduation year to generate a four-year academic plan
             </p>
           </div>
 
@@ -327,7 +327,7 @@ export default function Home() {
               {isGenerating ? (
                 <>
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>Generating Your Plan...</span>
+                  <span>Generating Plan...</span>
                 </>
               ) : (
                 <>
@@ -376,7 +376,7 @@ export default function Home() {
             </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Academic Timeline</h3>
             <p className="text-gray-600 text-sm">
-              Visualize your academic journey from freshman to graduation year
+              View your academic timeline from freshman year to graduation
             </p>
           </div>
 

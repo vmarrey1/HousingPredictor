@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Calendar, BookOpen, Clock, CheckCircle, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Calendar, BookOpen, Clock, CheckCircle, AlertCircle, Edit, X, Plus, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -47,6 +47,8 @@ export default function SchedulePage() {
   const [selectedSemester, setSelectedSemester] = useState<Semester | null>(null)
   const [showCourseOptions, setShowCourseOptions] = useState(false)
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
+  const [selectedCourseSemesterIndex, setSelectedCourseSemesterIndex] = useState<number | null>(null)
+  const [selectedCourseIndex, setSelectedCourseIndex] = useState<number | null>(null)
   const [courseOptions, setCourseOptions] = useState<any[]>([])
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
   const router = useRouter()
@@ -61,7 +63,7 @@ export default function SchedulePage() {
     axios.get('/api/auth/me').then(res => setUser(res.data?.user || null)).catch(() => {})
   }, [router])
 
-  const loadCourseOptions = async (course: Course) => {
+  const loadCourseOptions = async (course: Course, semesterIndex: number, courseIndex: number) => {
     if (!plan) return
     
     setIsLoadingOptions(true)
@@ -73,6 +75,8 @@ export default function SchedulePage() {
       })
       setCourseOptions(response.data.options || [])
       setSelectedCourse(course)
+      setSelectedCourseSemesterIndex(semesterIndex)
+      setSelectedCourseIndex(courseIndex)
       setShowCourseOptions(true)
     } catch (error) {
       console.error('Error loading course options:', error)
@@ -106,11 +110,23 @@ export default function SchedulePage() {
       requirement_name: selectedCourse?.requirement_name || 'Elective'
     }
     
-    updatedPlan.semesters[semesterIndex].courses.push(newCourse)
-    updatedPlan.semesters[semesterIndex].units += newCourse.units
+    // If we're replacing a course (selectedCourseIndex is not null)
+    if (selectedCourseIndex !== null && selectedCourseSemesterIndex === semesterIndex) {
+      updatedPlan.semesters[semesterIndex].courses[selectedCourseIndex] = newCourse
+      // Recalculate units
+      updatedPlan.semesters[semesterIndex].units = updatedPlan.semesters[semesterIndex].courses.reduce(
+        (sum, course) => sum + course.units, 0
+      )
+    } else {
+      updatedPlan.semesters[semesterIndex].courses.push(newCourse)
+      updatedPlan.semesters[semesterIndex].units += newCourse.units
+    }
+    
     setPlan(updatedPlan)
     sessionStorage.setItem('fourYearPlan', JSON.stringify(updatedPlan))
     setShowCourseOptions(false)
+    setSelectedCourseIndex(null)
+    setSelectedCourseSemesterIndex(null)
   }
 
   const savePlan = async () => {
@@ -133,7 +149,7 @@ export default function SchedulePage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your plan...</p>
+          <p className="text-gray-600">Loading plan...</p>
         </div>
       </div>
     )
@@ -262,215 +278,194 @@ export default function SchedulePage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="card hover:shadow-lg transition-shadow cursor-pointer"
-              onClick={() => setSelectedSemester(semester)}
+              className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow"
             >
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">
+                  <h3 className="text-xl font-bold text-gray-900">
                     {semester.term} {semester.year}
                   </h3>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-gray-600 mt-1">
                     {semester.courses.length} courses • {semester.units} units
                   </p>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getTermColor(semester.term)}`}>
+                <span className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${getTermColor(semester.term)}`}>
                   {semester.term}
                 </span>
               </div>
 
-              <div className="space-y-2">
-                {semester.courses.map((course, courseIndex) => (
-                  <div
-                    key={courseIndex}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                  >
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900">
-                        {course.subject} {course.number}
-                      </p>
-                      <p className="text-sm text-gray-600 truncate">{course.title}</p>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <span className={`px-2 py-1 rounded text-xs font-medium border ${getRequirementColor(course.requirement_type)}`}>
-                          {course.requirement_name}
-                        </span>
-                        <span className="text-xs text-gray-500">{course.units} units</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => loadCourseOptions(course)}
-                        disabled={isLoadingOptions}
-                        className="px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 border border-blue-200 rounded hover:bg-blue-50 transition-colors disabled:opacity-50"
-                      >
-                        {isLoadingOptions ? 'Loading...' : 'Options'}
-                      </button>
-                      <button
-                        onClick={() => removeCourse(index, courseIndex)}
-                        className="px-2 py-1 text-xs font-medium text-red-600 hover:text-red-800 border border-red-200 rounded hover:bg-red-50 transition-colors"
-                      >
-                        Remove
-                      </button>
-                    </div>
+              <div className="space-y-3 mb-4">
+                {semester.courses.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400">
+                    <AlertCircle className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+                    <p className="text-sm">No courses scheduled for this semester</p>
                   </div>
-                ))}
-                
-                {/* Add Course Button */}
-                <button
-                  onClick={() => {
-                    setSelectedCourse({
-                      subject: '',
-                      number: '',
-                      title: '',
-                      units: 0,
-                      requirement_type: 'elective',
-                      requirement_name: 'Elective'
-                    })
-                    setCourseOptions([])
-                    setShowCourseOptions(true)
-                  }}
-                  className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  + Add Course
-                </button>
+                ) : (
+                  semester.courses.map((course, courseIndex) => (
+                    <div
+                      key={courseIndex}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        loadCourseOptions(course, index, courseIndex)
+                      }}
+                      className="group relative flex items-start justify-between p-4 bg-gradient-to-r from-gray-50 to-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between mb-2">
+                          <p className="font-semibold text-gray-900 text-base">
+                            {course.subject} {course.number}
+                          </p>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              removeCourse(index, courseIndex)
+                            }}
+                            className="ml-2 p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                            title="Remove course"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <p className="text-sm text-gray-700 mb-2 line-clamp-2">{course.title}</p>
+                        <div className="flex items-center space-x-2 flex-wrap">
+                          <span className={`px-2.5 py-1 rounded-md text-xs font-medium border ${getRequirementColor(course.requirement_type)}`}>
+                            {course.requirement_name}
+                          </span>
+                          <span className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                            {course.units} units
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          loadCourseOptions(course, index, courseIndex)
+                        }}
+                        className="ml-3 p-2 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                        title="Change course"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
-
-              {semester.courses.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <AlertCircle className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                  <p>No courses scheduled</p>
-                </div>
-              )}
+              
+              {/* Add Course Button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSelectedCourse({
+                    subject: '',
+                    number: '',
+                    title: '',
+                    units: 0,
+                    requirement_type: 'elective',
+                    requirement_name: 'Elective'
+                  })
+                  setSelectedCourseSemesterIndex(index)
+                  setSelectedCourseIndex(null)
+                  setCourseOptions([])
+                  setShowCourseOptions(true)
+                }}
+                className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors font-medium"
+              >
+                <Plus className="h-5 w-5" />
+                Add Course
+              </button>
             </motion.div>
           ))}
         </div>
 
-        {/* Semester Detail Modal */}
-        {selectedSemester && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto"
-            >
-              <div className="p-6 border-b">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-gray-900">
-                    {selectedSemester.term} {selectedSemester.year}
-                  </h2>
-                  <button
-                    onClick={() => setSelectedSemester(null)}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    ✕
-                  </button>
-                </div>
-                <p className="text-gray-600 mt-1">
-                  {selectedSemester.courses.length} courses • {selectedSemester.units} units
-                </p>
-              </div>
-
-              <div className="p-6">
-                <div className="space-y-4">
-                  {selectedSemester.courses.map((course, index) => (
-                    <div
-                      key={index}
-                      className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900">
-                            {course.subject} {course.number}
-                          </h3>
-                          <p className="text-gray-600 mt-1">{course.title}</p>
-                          <div className="flex items-center space-x-2 mt-2">
-                            <span className={`px-2 py-1 rounded text-xs font-medium border ${getRequirementColor(course.requirement_type)}`}>
-                              {course.requirement_name}
-                            </span>
-                            <span className="text-xs text-gray-500">{course.units} units</span>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setSelectedCourse(course)
-                            setShowCourseOptions(true)
-                          }}
-                          className="ml-4 px-3 py-1 text-xs font-medium text-primary-600 hover:text-primary-700 border border-primary-200 rounded hover:bg-primary-50 transition-colors"
-                        >
-                          Options
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
 
         {/* Course Options Modal */}
         {showCourseOptions && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowCourseOptions(false)}>
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col shadow-2xl"
             >
-              <div className="p-6 border-b">
-                <h2 className="text-xl font-bold text-gray-900">Course Options</h2>
-                <p className="text-gray-600 mt-1">
-                  {selectedCourse?.requirement_name ? `Alternative courses for ${selectedCourse.requirement_name}` : 'Add a new course'}
-                </p>
+              <div className="p-6 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Course Selection</h2>
+                    <p className="text-gray-700 mt-1.5">
+                      {selectedCourse?.requirement_name && selectedCourse.subject ? 
+                        `Alternative courses for ${selectedCourse.requirement_name}` : 
+                        selectedCourseIndex !== null ? 
+                          'Select a replacement course' : 
+                          'Add a new course'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowCourseOptions(false)}
+                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-lg transition-colors"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
 
-              <div className="p-6">
-                <div className="space-y-3">
-                  {courseOptions.length > 0 ? (
-                    courseOptions.map((option, index) => (
+              <div className="p-6 overflow-y-auto flex-1">
+                {isLoadingOptions ? (
+                  <div className="text-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Loading course options...</p>
+                  </div>
+                ) : courseOptions.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-3">
+                    {courseOptions.map((option, index) => (
                       <div
                         key={index}
                         onClick={() => {
-                          if (selectedSemester) {
-                            addCourse(plan.semesters.findIndex(s => s === selectedSemester), option)
+                          if (selectedCourseSemesterIndex !== null) {
+                            addCourse(selectedCourseSemesterIndex, option)
                           }
                         }}
-                        className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                        className="group p-4 border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:shadow-md cursor-pointer transition-all bg-white"
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">
-                              {option.subject} {option.number}
-                            </p>
-                            <p className="text-sm text-gray-600 mt-1">{option.title}</p>
-                            <div className="flex items-center space-x-2 mt-2">
-                              <span className="text-xs text-gray-500">{option.units} units</span>
-                              {option.terms_offered && (
-                                <span className="text-xs text-gray-500">• {option.terms_offered}</span>
-                              )}
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-3 mb-2">
+                              <p className="font-bold text-lg text-gray-900">
+                                {option.subject} {option.number}
+                              </p>
+                              <span className="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded">
+                                {option.units} units
+                              </span>
                             </div>
+                            <p className="text-sm text-gray-700 mb-3 line-clamp-2">{option.title}</p>
+                            {option.terms_offered && (
+                              <p className="text-xs text-gray-500">
+                                Offered: {option.terms_offered}
+                              </p>
+                            )}
                           </div>
-                          <button className="px-3 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 border border-blue-200 rounded hover:bg-blue-50 transition-colors">
-                            Add
+                          <button className="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm">
+                            {selectedCourseIndex !== null ? 'Replace' : 'Add'}
                           </button>
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <p>No alternative courses available</p>
-                      <p className="text-sm mt-1">You can still add custom courses</p>
-                    </div>
-                  )}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <BookOpen className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-600 font-medium">No course options available</p>
+                    <p className="text-sm text-gray-500 mt-2">Please try selecting a different requirement</p>
+                  </div>
+                )}
+              </div>
 
-                <div className="flex justify-end space-x-3 mt-6">
-                  <button
-                    onClick={() => setShowCourseOptions(false)}
-                    className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
+              <div className="p-6 border-t bg-gray-50 flex justify-end">
+                <button
+                  onClick={() => setShowCourseOptions(false)}
+                  className="px-6 py-2.5 text-gray-700 hover:text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                >
+                  Cancel
+                </button>
               </div>
             </motion.div>
           </div>
